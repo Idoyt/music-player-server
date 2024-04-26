@@ -28,14 +28,15 @@ def login_view(request):
 @csrf_exempt
 def check_email_view(request):
     if request.method == 'POST':
+        print(request.POST)
         data = json.loads(request.body)
         email = data['email']
         if CustomUser.objects.filter(email=email).exists():
             return JsonResponse({'status': 'success'})
         else:
-            return JsonResponse({'status': 'fail'})
+            return JsonResponse({'status': 'fail', 'message': 'User does not exist'})
     else:
-        return JsonResponse({'status': 'fail'})
+        return JsonResponse({'status': 'fail', 'message': 'method not allowed'})
 
 
 @csrf_exempt
@@ -46,9 +47,9 @@ def register_view(request):
         password = data['password']
         username = data['username']
         if CustomUser.objects.filter(email=email).exists():
-            return JsonResponse({'status': 'email is taken'})
+            return JsonResponse({'status': 'email has been taken'})
         else:
-            user = CustomUser.objects.create_user(email=email, password=password, username=username)
+            CustomUser.objects.create_user(email=email, password=password, username=username)
             return JsonResponse({'status': 'success'})
     else:
         return JsonResponse({'status': 'fail'})
@@ -61,3 +62,12 @@ def logout_view(request):
         return JsonResponse({'status': 'success'})
     else:
         return JsonResponse({'status': 'fail'})
+
+
+@csrf_exempt
+def get_user_info(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        email = data['email']
+        if CustomUser.objects.filter(email=email).exists() and request.user.is_authenticated():
+            selected_user = CustomUser.objects.get(email=email)
