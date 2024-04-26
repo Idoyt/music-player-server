@@ -66,8 +66,30 @@ def logout_view(request):
 
 @csrf_exempt
 def get_user_info(request):
-    if request.method == 'POST':
+    if request.method == 'GET':
         data = json.loads(request.body)
         email = data['email']
-        if CustomUser.objects.filter(email=email).exists() and request.user.is_authenticated():
-            selected_user = CustomUser.objects.get(email=email)
+        if CustomUser.objects.filter(email=email).exists and request.user.is_authenticated and request.user.is_active:
+            user = CustomUser.objects.get(email=email)
+            print()
+            response = {
+                'status': 'success',
+                'email': user.email,
+                'username': user.username,
+                'avatar_url': user.avatar_url,
+                'is_staff': user.is_staff,
+                'is_active': user.is_active,
+                'is_creator': user.is_creator,
+                'follower_id_list': list(user.follower_id_list.values()),
+                'following_id_list': list(user.following_id_list.values())
+            }
+            return JsonResponse({'status': 'success', 'data': response})
+        else:
+            if not CustomUser.objects.filter(email=email).exists():
+                return JsonResponse({'error': 'User does not exist'})
+            elif not request.user.is_authenticated:
+                return JsonResponse({'error': 'user has not been authenticated'})
+            else:
+                return JsonResponse({'error': 'user has been banned'})
+    else:
+        return JsonResponse({'error': 'method not allowed'})

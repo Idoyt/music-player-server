@@ -32,9 +32,9 @@ class CustomUser(AbstractBaseUser):
     uuid = models.UUIDField(unique=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=30, default='miku fans')
-    avatar = models.URLField(default='', max_length=200, blank=True)
+    avatar_url = models.URLField(default='', max_length=200, blank=True)
 
-    fans_id_list = models.ManyToManyField(to='self', symmetrical=False, related_name='following')
+    follower_id_list = models.ManyToManyField(to='self', symmetrical=False, related_name='following')
     following_id_list = models.ManyToManyField(to='self', symmetrical=False, related_name='follower')
 
     # 合法用户 (拥有听歌的权限，拥有创建歌单的权限，拥有收藏/点赞/评论/转发的权限)
@@ -103,5 +103,4 @@ class Comment(models.Model):
     son_count = models.IntegerField(default=0)
     content = models.TextField(default='none')
 
-class UserFavorite(models.Model):
 
