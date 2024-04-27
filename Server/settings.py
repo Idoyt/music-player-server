@@ -36,7 +36,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
-    "User.apps.UserConfig"
+    "User.apps.UserConfig",
 ]
 
 MIDDLEWARE = [
@@ -131,3 +131,5 @@ SESSION_COOKIE_AGE = 180
 # 允许跨域
 CORS_ALLOW_ALL_ORIGINS = True
 
+# 音频与歌词文件路径 review 为待审核的，common 为通过审核的
+MEDIA_URL = 'media/'

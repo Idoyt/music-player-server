@@ -17,13 +17,24 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
-from User.views import register_view, login_view, logout_view, check_email_view, get_user_info
+from User.views import (
+    new_user_info,
+    login_view,
+    logout_view,
+    check_email_view,
+    get_user_info,
+    update_user_info,
+    update_music_info
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('register/', register_view, name='register'),
+    path('register/', new_user_info, name='register'),
     path('login/', login_view, name='login'),
     path('logout/', logout_view, name='logout'),
     path('check_email/', check_email_view, name='check_email'),
-    path('get_user_info/', get_user_info, name='get_user_info')
+    path('get_user_info/', get_user_info, name='get_user_info'),
+    path('update_user_info/', update_user_info, name='update_user_info'),
+    path('update_music_info/', update_music_info, name='update_music_info')
+
 ]
