@@ -49,8 +49,7 @@ def logout_view(request):
 def check_email_view(request):
     if not request.method == 'POST':
         return JsonResponse({'state': 'fail', 'message': 'method not allowed'})
-    elif not request.user.is_authenticated:
-        return JsonResponse({'state': 'fail', 'message': 'User does not login'})
+
     data = json.loads(request.body)
     email = data.get('email', None)
     if email is None:
