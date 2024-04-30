@@ -1,0 +1,1 @@
+[{"model": "User.CustomUser", "fields": {"email": "123@staff.com", "username": "staff_user", "password": "pbkdf2_sha256$720000$SlnntYcm9eJ0EzKZJg2PlX$4D21AbOSVPIjU1ZNXd7ztg75FoY+fIlpoFHol9KG2N0=", "is_staff": true}}]

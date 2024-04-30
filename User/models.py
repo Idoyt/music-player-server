@@ -10,7 +10,6 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 # 2. 所有的text的长度均小于300
 # 3. 主键必须设置且unique且为Auto
 
-# 2024.4.25 21:11记 把Arrary相关的词条全换了，MySql不支持这个！！！！！
 # Create your models here.
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -54,73 +53,82 @@ class CustomUser(AbstractBaseUser):
 # 单个音频的所有信息
 class MusicInfo(models.Model):
     music_id = models.UUIDField(unique=True, default=uuid.uuid4, editable=False, primary_key=True)
-    title = models.CharField(max_length=30, default='none')
-    artist = models.CharField(max_length=30, default='none')
-    genre = models.CharField(max_length=30, default='none')
-    album = models.CharField(max_length=30, default='none')
+    title = models.CharField(max_length=30, default=None)
+    artist = models.CharField(max_length=30, default=None)
+    genre = models.CharField(max_length=30, default=None)
+    album = models.CharField(max_length=30, default=None)
+    extension = models.CharField(max_length=30, default=None)
+    release_date = models.DateField(default=timezone.now)
 
-    cover_url = models.URLField(max_length=200, default='none')
-    source_url = models.URLField(max_length=200, default='none')
-    lyrics_url = models.URLField(max_length=200, default='none')
+    cover_url = models.URLField(max_length=200, default=None, null=True)
+    source_url = models.URLField(max_length=200, default=None, null=True)
+    lyrics_url = models.URLField(max_length=200, default=None, null=True)
 
     likes = models.IntegerField(default=0)
     shares = models.IntegerField(default=0)
     search_volume = models.IntegerField(default=0)
     # 评论数量可用MusicInfo.objects.get(music_id=music_id).comments.count()查询
 
-    releaseDate = models.DateField(default=timezone.now)
+    # 以下为仅 staff可获取字段
     is_active = models.BooleanField(default=False)
     is_reviewed = models.BooleanField(default=False)
+    # to_be_deleted = models.BooleanField(default=False)
 
 
-# 新增评论时记得携带list/music的id
 class MusicPlayList(models.Model):
     list_id = models.UUIDField(unique=True, default=uuid.uuid4, editable=False, primary_key=True)
-    owner = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    creator = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     is_public = models.BooleanField(default=False)
     # type分为 none: 未设置, like: 我喜欢, created: 个人创建的, album: 专辑,
-    list_type = models.CharField(max_length=30, default='none')
+    list_type = models.CharField(max_length=30, default=None, null=True)
 
     likes = models.IntegerField(default=0)
     shares = models.IntegerField(default=0)
     # 评论数量可用 MusicPlayList.objects.get(music_id=music_id).comments.count()查询
 
-    list_cover = models.URLField(max_length=200, default='none')
-    list_name = models.CharField(max_length=30, default='none')
+    list_cover = models.URLField(max_length=200, default=None, null=True)
+    list_name = models.CharField(max_length=30, default=None, null=True)
     create_date = models.DateField(auto_now_add=True)
-    description = models.TextField(default='none')
+    description = models.TextField(default=None, null=True)
 
     playback_volume = models.IntegerField(default=0)
     search_volume = models.IntegerField(default=0)
+    music_list = models.ManyToManyField(to='MusicInfo', symmetrical=False, related_name='in_list', blank=True)
+    is_reviewed = models.BooleanField(default=False)
 
 
 class Comment(models.Model):
-    comment_id = models.AutoField(primary_key=True, unique=True, default=uuid.uuid4, editable=False)
-    father_comment = models.CharField(max_length=30, default='none')
-    father_comment_id_list = models.ForeignKey('self', on_delete=models.CASCADE, related_name='son_comments', null=True)
+    comment_id = models.UUIDField(primary_key=True, unique=True, default=uuid.uuid4, editable=False)
+    father_comment = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
+    father_comment_id_list \
+        = models.ForeignKey('self', on_delete=models.CASCADE, related_name='son_comment_list', null=True)
     root_comment = models.ForeignKey('self', on_delete=models.CASCADE, related_name='descendant_comments', null=True)
     root_is_music = models.BooleanField(default=False)
     playlist_root = models.ForeignKey(MusicPlayList, on_delete=models.CASCADE, related_name='comments', null=True)
     music_root = models.ForeignKey(MusicInfo, on_delete=models.CASCADE, related_name='comments', null=True)
+    son_count = models.IntegerField(default=0)
+    is_reviewed = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
 
-    owner = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    creator = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     create_date = models.DateField(auto_now_add=True)
     likes = models.IntegerField(default=0)
-    son_count = models.IntegerField(default=0)
+    user_like_this = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='liked_comment', null=True)
     content = models.TextField(default='none')
 
 
 class Task(models.Model):
     task_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    task_name = models.CharField(max_length=30, default='none')
-    task_type = models.CharField(max_length=30, default='none')
-    task_priority = models.CharField(max_length=30, default='none')
-    task_tags = models.CharField(max_length=30, default='none')
-    task_notes = models.TextField(default='none')
+    task_name = models.CharField(max_length=30, default='Default Task')
+    task_type = models.CharField(max_length=30)
+    # task_priority的range为[0, 5]
+    task_priority = models.IntegerField(default=0)
+    task_tags = models.CharField(max_length=30, null=True)
+    task_notes = models.TextField(null=True)
 
     task_creator = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='tasks')
     create_date = models.DateField(auto_now_add=True)
 
     # 默认为 none , 未完成为 to be done, 完成为 completed, 失败为 failed
-    task_state = models.CharField(max_length=30, default='none')
+    task_state = models.CharField(max_length=30, default='to be done')
     task_completed_time = models.DateTimeField(default=timezone.now)

@@ -133,3 +133,9 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 # 音频与歌词文件路径 review 为待审核的，common 为通过审核的
 MEDIA_URL = 'media/'
+
+FILES_UPLOAD_HANDLERS = [
+    "django.core.files.uploadhandler.TemporaryFileUploadHandler",
+]
+DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800
+
