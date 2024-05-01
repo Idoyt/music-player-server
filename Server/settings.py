@@ -24,7 +24,7 @@ SECRET_KEY = 'django-insecure-e&ow1w88t*^r-1yjf36d7$p1r3a6#4)1$l^xw@*wuu8l($d4ic
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["101.201.66.67", "localhost", "127.0.0"]
+ALLOWED_HOSTS = ["101.201.66.67", "localhost", "127.0.0", "123.57.7.117"]
 
 # Application definition
 
@@ -81,7 +81,7 @@ DATABASES = {
         'NAME': 'musicWebDatabase',
         'USER': 'user',
         'PASSWORD': '123456',
-        'HOST': '101.201.66.67',  # 如果 MySQL 服务器在本地，则使用 localhost
+        'HOST': '123.57.7.117',  # 如果 MySQL 服务器在本地，则使用 localhost
         'PORT': '3306',       # MySQL 默认端口为 3306
     }
 }
