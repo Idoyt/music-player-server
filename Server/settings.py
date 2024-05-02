@@ -80,7 +80,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'musicWebDatabase',
         'USER': 'user',
-        'PASSWORD': '123456',
+        'PASSWORD': 'xxbszkad2333',
         'HOST': '123.57.7.117',  # 如果 MySQL 服务器在本地，则使用 localhost
         'PORT': '3306',       # MySQL 默认端口为 3306
     }

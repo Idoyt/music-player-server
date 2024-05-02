@@ -21,6 +21,7 @@ from User.views import (
     login_view,
     logout_view,
     check_email_view,
+    check_login,
 
     new_user_info,
     get_user_info,
@@ -46,6 +47,7 @@ urlpatterns = [
     path('login/', login_view, name='login'),
     path('logout/', logout_view, name='logout'),
     path('check_email/', check_email_view, name='check_email'),
+    path('check_login/', check_login, name='check_login'),
 
     path('new_user_info/', new_user_info, name='new_user_info'),
     path('get_user_info/', get_user_info, name='get_user_info'),

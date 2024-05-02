@@ -45,6 +45,22 @@ def logout_view(request):
 
 
 @csrf_exempt
+def check_login(request):
+    if not request.method == 'GET':
+        return JsonResponse({'state': 'fail', 'message': 'Method not allowed'})
+
+    data = json.loads(request.body.decode('utf-8'))
+    email = data.get('email', None)
+    if email is None:
+        return JsonResponse({'state': 'fail', 'message': 'Missing parameters'})
+
+    user = CustomUser.objects.get(email=email)
+    if user.is_authenticated:
+        return JsonResponse({'state': 'success', 'message': 'User logged in successfully'})
+    else:
+        return JsonResponse({'state': 'fail', 'message': 'User does not exist or is not authenticated'})
+
+@csrf_exempt
 # 接口已验证
 def check_email_view(request):
     if not request.method == 'POST':
