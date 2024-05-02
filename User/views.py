@@ -316,7 +316,7 @@ def get_user_info(request):
     if not request.method == 'GET':
         return JsonResponse({'state': 'fail', 'message': 'Method not allowed'})
     elif not request.user.is_authenticated:
-        return JsonResponse({'state': 'fail', 'message': 'You are logged in'})
+        return JsonResponse({'state': 'fail', 'message': 'You are not logged in'})
 
     if request.user.is_staff:
         data = json.loads(request.body.decode('utf-8'))
