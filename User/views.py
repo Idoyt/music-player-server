@@ -25,7 +25,9 @@ def login_view(request):
     if email is None or password is None:
         return JsonResponse({'state': 'fail', 'message': 'Missing credentials'})
     elif request.user.is_authenticated and email == request.user.email:
-        return JsonResponse({'state': 'fail', 'message': 'User already logged in'})
+        logout(request)
+        login(request, user)
+        return JsonResponse({'state': 'success', 'message': 'User already logged in'})
     elif user is None:
         return JsonResponse({'state': 'fail', 'message': 'Email or Password is incorrect'})
 
@@ -36,7 +38,7 @@ def login_view(request):
 @csrf_exempt
 # 接口已验证
 def logout_view(request):
-    if not request.method == 'GET':
+    if not request.method == 'POST':
         return JsonResponse({'state': 'fail', 'message': 'Method not allowed'})
     elif not request.user.is_authenticated:
         return JsonResponse({'state': 'fail', 'message': 'User does not login'})
@@ -49,8 +51,8 @@ def check_login(request):
     if not request.method == 'GET':
         return JsonResponse({'state': 'fail', 'message': 'Method not allowed'})
 
-    data = json.loads(request.body.decode('utf-8'))
-    email = data.get('email', None)
+    email = request.GET.get('email', None)
+
     if email is None:
         return JsonResponse({'state': 'fail', 'message': 'Missing parameters'})
 
@@ -60,14 +62,14 @@ def check_login(request):
     else:
         return JsonResponse({'state': 'fail', 'message': 'User does not exist or is not authenticated'})
 
+
 @csrf_exempt
 # 接口已验证
 def check_email_view(request):
-    if not request.method == 'POST':
+    if not request.method == 'GET':
         return JsonResponse({'state': 'fail', 'message': 'method not allowed'})
 
-    data = json.loads(request.body)
-    email = data.get('email', None)
+    email = request.GET.get('email', None)
     if email is None:
         return JsonResponse({'state': 'fail', 'message': 'Email is required'})
     elif not CustomUser.objects.filter(email=email).exists():
@@ -210,7 +212,6 @@ def get_task(request):
         if data[key] is None:
             continue
         inquiry_filter[key] = value
-    print(inquiry_filter)
     response = Task.objects.filter(**inquiry_filter).values()
     return JsonResponse({'state': 'success', 'message': list(response)})
 
@@ -316,11 +317,10 @@ def get_user_info(request):
     if not request.method == 'GET':
         return JsonResponse({'state': 'fail', 'message': 'Method not allowed'})
     elif not request.user.is_authenticated:
-        return JsonResponse({'state': 'fail', 'message': 'You are not logged in'})
+        return JsonResponse({'state': 'fail', 'message': request.user.email})
 
     if request.user.is_staff:
-        data = json.loads(request.body.decode('utf-8'))
-        email = data.get('email', None)
+        email = request.GET.get('email', None)
         if email is None:
             email = request.user.email
 
@@ -661,7 +661,7 @@ def update_playlist_info(request):
             playlist_to_update.music_list.add(MusicInfo.objects.get(music_id=item))
         update_item.pop('music_list')
 
-    for key,value in update_item.items():
+    for key, value in update_item.items():
         setattr(playlist_to_update, key, value)
     playlist_to_update.save()
     return JsonResponse({'state': 'success', 'message': 'Updated playlist successfully'})

@@ -126,10 +126,15 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'User.CustomUser'
-SESSION_COOKIE_AGE = 180
 
 # 允许跨域
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ORIGIN_ALLOW_ALL = False
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://123.57.7.117:8000"
+]
+CORS_ALLOW_CREDENTIALS = True
 
 # 音频与歌词文件路径 review 为待审核的，common 为通过审核的
 MEDIA_URL = 'media/'
@@ -138,4 +143,7 @@ FILES_UPLOAD_HANDLERS = [
     "django.core.files.uploadhandler.TemporaryFileUploadHandler",
 ]
 DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800
+
+# 会话过期时间 /s
+SESSION_COOKIE_AGE = 60 * 60 * 24
 
