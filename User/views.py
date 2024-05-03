@@ -346,6 +346,8 @@ def get_user_info(request):
         return JsonResponse({'state': 'success', 'message': response})
 
     else:
+        if request.user.is_anonymous:
+            return JsonResponse({'state': 'fail', 'message': 'User not found'})
         user = CustomUser.objects.get(email=request.user.email)
         if not user.is_active:
             return JsonResponse({'state': 'fail', 'message': 'You have been banned'})
