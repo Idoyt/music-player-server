@@ -22,6 +22,7 @@ from User.views import (
     logout_view,
     check_email_view,
     check_login,
+    check_is_staff,
 
     new_user_info,
     get_user_info,
@@ -33,6 +34,7 @@ from User.views import (
     delete_task,
 
     new_music_info,
+    new_music_info_by_admin,
     update_music_info,
     delete_music_info,
     get_music_info,
@@ -48,6 +50,7 @@ urlpatterns = [
     path('logout/', logout_view, name='logout'),
     path('check_email/', check_email_view, name='check_email'),
     path('check_login/', check_login, name='check_login'),
+    path('check_is_staff/', check_is_staff, name='check_is_staff'),
 
     path('new_user_info/', new_user_info, name='new_user_info'),
     path('get_user_info/', get_user_info, name='get_user_info'),
@@ -59,6 +62,7 @@ urlpatterns = [
     path('delete_task/', delete_task, name='delete_task'),
 
     path('new_music_info/', new_music_info, name='new_music_info'),
+    path('new_music_info_by_admin/', new_music_info_by_admin, name='new_music_info_by_admin'),
     path('update_music_info/', update_music_info, name='update_music_info'),
     path('delete_music_info/', delete_music_info, name='delete_music_info'),
     path('get_music_info/', get_music_info, name='get_music_info'),

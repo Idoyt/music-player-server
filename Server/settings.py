@@ -139,6 +139,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 # 音频与歌词文件路径 review 为待审核的，common 为通过审核的
 MEDIA_URL = 'media/'
+IMAGE_URL = 'image/'
 
 FILES_UPLOAD_HANDLERS = [
     "django.core.files.uploadhandler.TemporaryFileUploadHandler",

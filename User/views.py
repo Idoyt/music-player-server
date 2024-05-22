@@ -1,5 +1,7 @@
 import json
 import os
+from datetime import datetime
+
 from django.contrib.auth.hashers import check_password
 import User.authorization_items as authorization_items
 from django.contrib.auth import authenticate, login, logout
@@ -7,6 +9,8 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from Server import settings
 from .models import CustomUser, MusicInfo, MusicPlayList, Comment, Task
+import csv
+from django.shortcuts import render
 
 
 # 2024.4.28 记， 1. 记得将所有的delete、review操作添加 new task操作 2. 继续测试update_user_info接口
@@ -24,10 +28,9 @@ def login_view(request):
     user = authenticate(request, email=email, password=password)
     if email is None or password is None:
         return JsonResponse({'state': 'fail', 'message': 'Missing credentials'})
-    elif request.user.is_authenticated and email == request.user.email:
-        logout(request)
-        login(request, user)
-        return JsonResponse({'state': 'success', 'message': 'User already logged in'})
+    # elif request.user.is_authenticated and email == request.user.email:
+    #     logout(request)
+    #     return JsonResponse({'state': 'fail', 'message': 'User already logged in, login again'})
     elif user is None:
         return JsonResponse({'state': 'fail', 'message': 'Email or Password is incorrect'})
 
@@ -47,6 +50,7 @@ def logout_view(request):
 
 
 @csrf_exempt
+# 接口已验证
 def check_login(request):
     if not request.method == 'GET':
         return JsonResponse({'state': 'fail', 'message': 'Method not allowed'})
@@ -78,6 +82,18 @@ def check_email_view(request):
     return JsonResponse({'state': 'success', 'message': 'email check successful'})
 
 
+@csrf_exempt
+def check_is_staff(request):
+    if not request.method == 'GET':
+        return JsonResponse({'state': 'fail', 'message': 'Method not allowed'})
+    elif not request.user.is_authenticated:
+        return JsonResponse({'state': 'fail', 'message': 'User does not exist or is not'})
+    elif not request.user.is_staff:
+        return JsonResponse({'state': 'fail', 'message': 'User is not staff'})
+
+    return JsonResponse({'state': 'success', 'message': 'check is staff successful'})
+
+
 # 以下为各种增删改查函数
 
 # 任务的增删改查
@@ -90,24 +106,20 @@ def new_task(request, data):
     elif not data.get('task_type') in authorization_items.task_type:
         return {'state': 'fail', 'message': 'Task type not allowed'}
 
-    task_name = data.get('task_name', 'Default Task')
-    task_type = data.get('task_type')
-    task_priority = data.get('task_priority', 0)
-    task_tags = data.get('task_tags', None)
+    to_save_data = {
+        'task_name': data.get('task_name', 'Default Task'),
+        'task_type': data.get('task_type', 'review.user'),
+        'task_priority': data.get('task_priority', 0),
+        'task_tags': data.get('task_tags', None),
+        'task_creator': CustomUser.objects.get(email=request.user.email),
+        'task_notes': data.get('task_notes', None),
+        'task_state': 'to be done'
+    }
+    music_id = data.get('music_id', None)
+    if music_id is not None:
+        to_save_data['music_id'] = MusicInfo.objects.get(music_id=music_id)
 
-    task_creator = CustomUser.objects.get(email=request.user.email)
-    task_notes = data.get('task_notes', None)
-    task_state = 'to be done'
-
-    new_tasks = Task.objects.create(
-        task_name=task_name,
-        task_type=task_type,
-        task_priority=task_priority,
-        task_tags=task_tags,
-        task_creator=task_creator,
-        task_notes=task_notes,
-        task_state=task_state
-    )
+    new_tasks = Task.objects.create(**to_save_data)
     new_tasks.save()
     return {'state': 'success', 'message': 'Task created successfully'}
 
@@ -199,20 +211,19 @@ def get_task(request):
     elif not request.user.is_staff:
         return JsonResponse({'state': 'fail', 'message': 'You are not authorized to get tasks list'})
 
-    data = json.loads(request.body.decode('utf-8'))
+    data = request.GET.get('data', {})
 
     data = dict(data)
 
     select_item = list(data.keys())
-    if not set(select_item).issubset(authorization_items.task_item_to_get):
+
+    if not set(select_item).issubset(set(authorization_items.task_item_to_get)):
         return JsonResponse({'state': 'fail', 'message': 'Invalid item for selecting tasks'})
 
-    inquiry_filter = {}
-    for key, value in data.items():
-        if data[key] is None:
-            continue
-        inquiry_filter[key] = value
-    response = Task.objects.filter(**inquiry_filter).values()
+    if None in data.values():
+        return JsonResponse({'state': 'fail', 'message': 'Missing data for selecting tasks'})
+
+    response = Task.objects.filter(**data).values()
     return JsonResponse({'state': 'success', 'message': list(response)})
 
 
@@ -241,34 +252,32 @@ def update_user_info(request):
     elif not request.user.is_authenticated:
         return JsonResponse({'state': 'fail', 'message': 'User not authenticated'})
 
-    data = json.loads(request.body.decode('utf-8'))
-    update_item = data.get('update_item', None)
-    update_value = data.get('update_value', None)
+    data = json.loads(request.body)
+    data = dict(data.get('update_item', None))
+    update_item = data.keys()
 
-    user_to_update = CustomUser.objects.get(email=request.user.email)
-    allowed_update_items = authorization_items.user_info_user
+    email = request.user.email
+    allowed_items = authorization_items.user_info_to_update_by_user
+    if request.user.is_staff and 'email' in update_item:
+        email = data['email']
+        allowed_items = authorization_items.user_info_to_get_by_staff
 
-    if not CustomUser.objects.filter(email=request.user.email).exists():
-        return JsonResponse({'state': 'fail', 'message': 'User does not exist'})
-    elif user_to_update.is_staff:
-        return JsonResponse({'state': 'fail', 'message': 'staff info not allowed to be updated'})
-    elif request.user.is_staff:
-        allowed_update_items = authorization_items.user_info_staff
-    if update_item not in allowed_update_items:
-        return JsonResponse({'state': 'fail', 'message': 'update item not allowed'})
-    elif update_value is None or update_item is None:
-        return JsonResponse({'state': 'fail', 'message': 'Missing parameter'})
-    elif getattr(user_to_update, update_item) == update_value and update_item != 'password':
-        return JsonResponse({'state': 'fail', 'message': 'Repeated update'})
+    user_to_update = CustomUser.objects.get(email=email)
 
-    if update_item == 'password':
-        if check_password(update_value, request.user.password):
-            return JsonResponse({'state': 'fail', 'message': 'Repeated update'})
-        user_to_update.set_password(update_value)
-    else:
-        setattr(user_to_update, update_item, update_value)
+    if not set(update_item).issubset(set(allowed_items)):
+        return JsonResponse({'state': 'fail', 'message': 'Update item not allowed'})
+    elif None in update_item or None in data.values():
+        return JsonResponse({'state': 'fail', 'message': 'Missing required fields'})
+
+    for key, value in data.items():
+        if key != 'password':
+            setattr(user_to_update, key, value)
+        else:
+            if check_password(value, request.user.password):
+                return JsonResponse({'state': 'fail', 'message': 'Repeated update'})
+            user_to_update.set_password(value)
     user_to_update.save()
-    return JsonResponse({'state': 'success', 'message': 'update item successfully'})
+    return JsonResponse({'state': 'success', 'message': 'Updated successfully'})
 
 
 # 策略： 普通用户可以提交删除本人账户的task，staff用户可以直接删除除了自己以外的所有用户
@@ -280,8 +289,7 @@ def delete_user_info(request):
     elif not request.user.is_authenticated:
         return JsonResponse({'state': 'fail', 'message': 'User not authenticated'})
 
-    data = json.loads(request.body.decode('utf-8'))
-    email = data.get('email', None)
+    email = request.GET.get('email', None)
     if request.user.is_staff:
         if email is None:
             return JsonResponse({'state': 'fail', 'message': 'Missing email'})
@@ -304,7 +312,11 @@ def delete_user_info(request):
         user_to_delete.to_be_deleted = True
         user_to_delete.save()
 
-        task_response = new_task(request, {'task_name': '测试用task', 'task_type': 'delete', 'task_priority': 1})
+        task_response = new_task(request, {
+            'task_name': 'Delete User',
+            'task_type': 'delete.user',
+            'task_priority': 0
+        })
         if task_response['state'] == 'fail':
             return JsonResponse({'state': 'fail', 'message': task_response['message']})
         else:
@@ -317,32 +329,30 @@ def get_user_info(request):
     if not request.method == 'GET':
         return JsonResponse({'state': 'fail', 'message': 'Method not allowed'})
     elif not request.user.is_authenticated:
-        return JsonResponse({'state': 'fail', 'message': request.user.email})
+        return JsonResponse({'state': 'fail', 'message': 'You are not authenticated'})
 
     if request.user.is_staff:
-        email = request.GET.get('email', None)
-        if email is None:
-            email = request.user.email
+        quantity = request.GET.get('quantity', None)
+        if quantity is None or not quantity.isdigit():
+            return JsonResponse({'state': 'fail', 'message': 'Quantity must be a number'})
+        if quantity == '0':
+            all_user = CustomUser.objects.all().values(*authorization_items.user_info_to_get_by_staff)[:1000]
+            response = list(all_user)
+        else:
+            email = request.GET.get('email', None)
+            if email is None:
+                email = request.user.email
 
-        if not CustomUser.objects.filter(email=email).exists():
-            return JsonResponse({'state': 'fail', 'message': 'Email not found'})
+            if not CustomUser.objects.filter(email=email).exists():
+                return JsonResponse({'state': 'fail', 'message': 'Email not found'})
 
-        user = CustomUser.objects.get(email=email)
-        response = {
-            'email': user.email,
-            'username': user.username,
-            'avatar_url': user.avatar_url,
-            'is_creator': user.is_creator,
-            'follower_id_list': list(user.follower_id_list.values()),
-            'following_id_list': list(user.following_id_list.values()),
-            'dislikes_music': list(user.dislikes_music.values()),
-            'dislikes_list': list(user.dislikes_list.values()),
+            user = CustomUser.objects.filter(email=email).values(
+                *authorization_items.user_info_to_get_by_staff
+            )[:int(quantity)]
 
-            'uuid': user.uuid,
-            'is_staff': user.is_staff,
-            'is_active': user.is_active,
-            'to_be_deleted': user.to_be_deleted
-        }
+            response = list(user)
+            if int(quantity) == 1:
+                response = response[0]
         return JsonResponse({'state': 'success', 'message': response})
 
     else:
@@ -352,31 +362,38 @@ def get_user_info(request):
         if not user.is_active:
             return JsonResponse({'state': 'fail', 'message': 'You have been banned'})
 
-        response = {
-            'email': user.email,
-            'username': user.username,
-            'avatar_url': user.avatar_url,
-            'is_creator': user.is_creator,
-            'follower_id_list': list(user.follower_id_list.values()),
-            'following_id_list': list(user.following_id_list.values()),
-            'dislikes_music': list(user.dislikes_music.values()),
-            'dislikes_list': list(user.dislikes_list.values()),
-        }
+        response = (CustomUser.objects.filter
+        (email=request.user.email).values(*authorization_items.user_info_to_get_by_user)[0])
         return JsonResponse({'state': 'success', 'message': response})
 
 
 # 增删改音频源文件
 # 方法已验证
-def new_music_source(file, music_id, extension):
-    file_name = str(music_id) + '.' + extension
-    if extension not in authorization_items.music_source_type:
-        return {'state': 'fail', 'message': 'file extension not allowed'}
+def new_file_source(file, music_id):
+    extension = file.name.split('.')[-1]
+    if extension not in authorization_items.allowed_upload_file_type:
+        return {'state': 'fail', 'message': 'File extensions not allowed'}
 
-    file_path = os.path.join(settings.MEDIA_URL, 'review/audio/' + file_name)
-    with open(file_path, 'wb+') as destination:
-        for chunk in file:
+    file_path = os.path.join(settings.MEDIA_URL, 'review/')
+    if not os.path.exists(file_path + str(music_id)):
+        os.mkdir(file_path + str(music_id))
+    file_path = os.path.join(file_path, str(music_id))
+
+    with open(file_path + '/' + file.name, 'wb+') as destination:
+        for chunk in file.chunks():
             destination.write(chunk)
+
     return {'state': 'success', 'message': file_path}
+
+    # file_name = str(music_id) + '.' + extension
+    # if extension not in authorization_items.music_source_type:
+    #     return {'state': 'fail', 'message': 'file extension not allowed'}
+    #
+    # file_path = os.path.join(settings.MEDIA_URL, 'review/audio/' + file_name)
+    # with open(file_path, 'wb+') as destination:
+    #     for chunk in file:
+    #         destination.write(chunk)
+    # return {'state': 'success', 'message': file_path}
 
 
 def update_music_source(file, music_id, extension):
@@ -412,7 +429,6 @@ def delete_music_source(music_id, extension):
 @csrf_exempt
 # 接口已验证
 def new_music_info(request):
-    # 传来的参数没有加校验功能，以后再说
     if not request.method == 'POST':
         return {'state': 'fail', 'message': 'Method not allowed'}
     elif not request.user.is_authenticated:
@@ -426,24 +442,42 @@ def new_music_info(request):
     if not set(data.keys()).issubset(authorization_items.music_info_to_update_by_user):
         return JsonResponse({'state': 'fail', 'message': 'Invalid items provided'})
 
-    item_filter = {}
-    for key, value in data.items():
-        if key is None or value is None:
-            return JsonResponse({'state': 'fail', 'message': 'Missing items provided'})
-        item_filter[key] = value
+    item_filter = dict(data)
+    if None in item_filter.values() or None in item_filter.keys():
+        return JsonResponse({'state': 'fail', 'message': 'Missing items provided'})
 
-    file = next(iter(request.FILES.values()))
-    item_filter['extension'] = file.name.split('.')[-1].lower()
+    file_list = {
+        'audio': request.FILES['audio'],
+        'lyric': request.FILES['lyric'],
+        'cover': request.FILES['cover']
+    }
+
     music_created = MusicInfo.objects.create(**item_filter)
 
-    response = new_music_source(file, music_created.music_id, music_created.extension)
-    if response['state'] != 'success':
-        music_created.delete()
-        return JsonResponse({'state': 'fail', 'message': response['message']})
+    for file in file_list.values():
+        music_response = new_file_source(file, music_created.music_id)
+        if music_response['state'] != 'success':
+            music_created.delete()
+            return JsonResponse({'state': 'fail', 'message': music_response['message']})
 
-    music_created.source_url = response['message']
+        extension = file.name.split('.')[-1]
+        if extension in authorization_items.allowed_upload_audio_type:
+            music_created.source_extension = extension
+        elif extension in authorization_items.allowed_upload_image_type:
+            music_created.cover_extension = extension
+        elif extension in authorization_items.allowed_upload_lyric_type:
+            music_created.lyrics_extension = extension
     music_created.save()
-    return JsonResponse({'state': 'success', 'message': 'Create music info and submit it to review successfully'})
+    task_response = new_task(request, {
+        'task_name': 'Music Info Review',
+        'task_type': 'review.music',
+        'task_priority': 0,
+        'music_id': music_created.music_id
+    })
+    if task_response['state'] == 'fail':
+        return JsonResponse({'state': 'fail', 'message': task_response['message']})
+    else:
+        return JsonResponse({'state': 'success', 'message': task_response['message']})
 
 
 @csrf_exempt
@@ -519,27 +553,21 @@ def get_music_info(request):
     elif not request.user.is_authenticated:
         return JsonResponse({'state': 'fail', 'message': 'User not authenticated'})
 
-    data = json.loads(request.body.decode('utf-8'))
-    select_item = dict(data)
-
-    allowed_items = authorization_items.music_info_to_update_by_user
+    select_item = request.GET.get('data', {})
+    # 测试用，记得改回user可用的
+    allowed_items = authorization_items.music_info_to_get_by_user
     if request.user.is_staff:
-        allowed_items = authorization_items.music_info_to_update_by_staff
+        allowed_items = authorization_items.music_info_to_get_by_staff
 
     if not set(select_item.keys()).issubset(set(allowed_items)):
         return JsonResponse({'state': 'fail', 'message': 'selected items not allowed'})
     elif None in select_item.values() or None in select_item.keys():
         return JsonResponse({'state': 'fail', 'message': 'Missing the required parameters'})
 
-    response = []
     if request.user.is_staff:
-        music_to_select = MusicInfo.objects.filter(**select_item)
+        response = list(MusicInfo.objects.filter(**select_item).values(*allowed_items))
     else:
-        music_to_select = MusicInfo.objects.filter(**select_item, is_active=True, is_reviewed=True)
-
-    for audio in list(music_to_select.values()):
-        result = {key: value for key, value in audio.items() if key in authorization_items.music_info_to_get_by_user}
-        response.append(result)
+        response = list(MusicInfo.objects.filter(**select_item, is_active=True, is_reviewed=True).values(*allowed_items))
     return JsonResponse({'state': 'success', 'message': response})
 
 
@@ -582,19 +610,26 @@ def get_comment_info(request):
 # 接口已验证
 def new_playlist_info(request):
     if not request.method == 'POST':
-        return JsonResponse({'state': 'error', 'message': 'Method Not Allowed'})
+        return JsonResponse({'state': 'fail', 'message': 'Method Not Allowed'})
     elif not request.user.is_authenticated:
-        return JsonResponse({'state': 'error', 'message': 'User Not Authorized'})
+        return JsonResponse({'state': 'fail', 'message': 'User Not Authorized'})
 
     data = json.loads(request.body.decode('utf-8'))
+
     data = dict(data)
 
     if None in data.keys() or None in data.values():
-        return JsonResponse({'state': 'error', 'message': 'Missing data'})
+        return JsonResponse({'state': 'fail', 'message': 'Missing data'})
     elif not set(data.keys()).issubset(set(authorization_items.music_list_item_to_update_by_user)):
-        return JsonResponse({'state': 'error', 'message': 'Invalid item'})
+        return JsonResponse({'state': 'fail', 'message': 'Invalid item'})
 
-    MusicPlayList.objects.create(**data, creator=CustomUser.objects.get(email=request.user.email))
+    music_list = []
+    if 'music_list' in data.keys():
+        music_list = data['music_list']
+        data.pop('music_list')
+
+    list_to_create = MusicPlayList.objects.create(**data, creator=CustomUser.objects.get(email=request.user.email))
+    list_to_create.music_list.set(music_list)
     return JsonResponse({'state': 'success', 'message': 'Successfully created playlist'})
 
 
@@ -677,46 +712,63 @@ def get_playlist_info(request):
     elif not request.user.is_authenticated:
         return JsonResponse({'state': 'error', 'message': 'User is not authenticated'})
 
-    data = json.loads(request.body.decode('utf-8'))
-    data = dict(data)
+    selected_item = request.GET.get('selected_item', {})
+    is_management = request.GET.get('is_management', None)
+
     user = CustomUser.objects.get(email=request.user.email)
 
     allowed_items = authorization_items.music_list_item_to_get_by_user
     if request.user.is_staff:
         allowed_items = authorization_items.music_list_item_to_get_by_staff
 
-    if not set(data.keys()).issubset(allowed_items):
+    if not set(selected_item.keys()).issubset(allowed_items):
         return JsonResponse({'state': 'fail', 'message': 'Selected item not allowed to filter by it'})
-    elif None in data.keys() or None in data.values():
+    elif None in selected_item.keys() or None in selected_item.values():
         return JsonResponse({'state': 'fail', 'message': 'Missing items selected'})
 
-    response = []
-    if request.user.is_staff:
-        response = list(MusicPlayList.objects.filter(**data).values())
+    if request.user.is_staff and is_management:
+        playlist_to_select = list(MusicPlayList.objects.filter(**selected_item).values(*allowed_items))
     else:
-        playlist_to_select = list(MusicPlayList.objects.filter(**data, is_public=True).exclude(creator=user).values())
-        playlist_to_select += list(MusicPlayList.objects.filter(**data, creator=user).values())
+        playlist_to_select = (
+            list(MusicPlayList.objects.filter(**selected_item, is_public=True).exclude(creator=user).values(
+                *allowed_items)))
+        playlist_to_select += list(MusicPlayList.objects.filter(**selected_item, creator=user).values(*allowed_items))
 
-        for playlist in playlist_to_select:
-            result = {}
-            for key, value in playlist.items():
-                result = {key: value for key, value in playlist.items() if
-                          key in authorization_items.music_list_item_to_get_by_user}
-            response.append(result)
-
-    return JsonResponse({'state': 'success', 'message': response})
+    return JsonResponse({'state': 'success', 'message': playlist_to_select})
 
 
 @csrf_exempt
-def new_avatar_url(request):
-    pass
+def new_music_info_by_admin(request):
+    if request.method != 'POST':
+        return JsonResponse({'state': 'fail', 'message': 'Method not allowed'})
+    elif not request.user.is_authenticated:
+        return JsonResponse({'state': 'fail', 'message': 'User not authenticated'})
+    elif not request.user.is_staff:
+        return JsonResponse({'state': 'fail', 'message': 'User is not staff'})
 
+    uploaded_file = list(request.FILES.getlist('file'))
 
-@csrf_exempt
-def delete_avatar_url(request):
-    pass
+    if len(uploaded_file) == 0:
+        return JsonResponse({'state': 'fail', 'message': 'You must upload an csv file'})
 
+    uploaded_file = uploaded_file[0]
 
-@csrf_exempt
-def update_avatar_url(request):
-    pass
+    if not uploaded_file.name.endswith('.csv'):
+        return {'state': 'fail', 'message': 'File extension not allowed'}
+
+    csv_data = uploaded_file.read().decode('gbk')
+    csv_reader = csv.DictReader(csv_data.splitlines())
+
+    for row in csv_reader:
+        year = row['release_date']
+        release_date = datetime.strptime(f"{year}-01-01", "%Y-%m-%d").date()
+
+        music_info = MusicInfo.objects.create(
+            title=row.get('title'),
+            album=row['album'],
+            artist=row['artist'],
+            release_date=release_date
+        )
+        music_info.save()
+
+    return JsonResponse({'state': 'success', 'message': 'Music updated successfully'})

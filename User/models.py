@@ -26,12 +26,15 @@ class CustomUser(AbstractBaseUser):
     uuid = models.UUIDField(unique=True, default=uuid.uuid4, editable=False, primary_key=True)
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=30, default='miku fans')
+    age = models.IntegerField(default=0)
+    sex = models.CharField(max_length=50, default='M')
+    # 归属地
+    region = models.CharField(max_length=50, default='China')
+
     avatar_url = models.URLField(default='', max_length=200, blank=True)
 
     follower_id_list = models.ManyToManyField(to='self', symmetrical=False, related_name='following')
     following_id_list = models.ManyToManyField(to='self', symmetrical=False, related_name='follower')
-    dislikes_music = models.ManyToManyField('MusicInfo', related_name='disliked_by', blank=True)
-    dislikes_list = models.ManyToManyField('MusicPlayList', related_name='disliked_by', blank=True)
     # 合法用户 (拥有听歌的权限，拥有创建歌单的权限，拥有收藏/点赞/评论/转发的权限)
     is_active = models.BooleanField(default=True)
     # 是管理员 (拥有封禁/解封管理员以外的用户的权限，拥有审查创作者上传的音乐的权限，拥有上传/修改音乐信息的权限)
@@ -53,20 +56,21 @@ class CustomUser(AbstractBaseUser):
 # 单个音频的所有信息
 class MusicInfo(models.Model):
     music_id = models.UUIDField(unique=True, default=uuid.uuid4, editable=False, primary_key=True)
-    title = models.CharField(max_length=30, default=None)
-    artist = models.CharField(max_length=30, default=None)
-    genre = models.CharField(max_length=30, default=None)
-    album = models.CharField(max_length=30, default=None)
-    extension = models.CharField(max_length=30, default=None)
+    title = models.CharField(max_length=200, default=None)
+    artist = models.CharField(max_length=200, default=None)
+    genre = models.CharField(max_length=200, default=None, null=True)
+    album = models.CharField(max_length=200, default=None, null=True)
     release_date = models.DateField(default=timezone.now)
 
-    cover_url = models.URLField(max_length=200, default=None, null=True)
-    source_url = models.URLField(max_length=200, default=None, null=True)
-    lyrics_url = models.URLField(max_length=200, default=None, null=True)
+    cover_extension = models.CharField(max_length=30, default=None, null=True)
+    source_extension = models.CharField(max_length=30, default=None, null=True)
+    lyrics_extension = models.CharField(max_length=30, default=None, null=True)
 
     likes = models.IntegerField(default=0)
     shares = models.IntegerField(default=0)
     search_volume = models.IntegerField(default=0)
+    jump_volume = models.IntegerField(default=0)
+    play_volume = models.IntegerField(default=0)
     # 评论数量可用MusicInfo.objects.get(music_id=music_id).comments.count()查询
 
     # 以下为仅 staff可获取字段
@@ -99,8 +103,7 @@ class MusicPlayList(models.Model):
 
 class Comment(models.Model):
     comment_id = models.UUIDField(primary_key=True, unique=True, default=uuid.uuid4, editable=False)
-    father_comment = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
-    father_comment_id_list \
+    father_comment_id\
         = models.ForeignKey('self', on_delete=models.CASCADE, related_name='son_comment_list', null=True)
     root_comment = models.ForeignKey('self', on_delete=models.CASCADE, related_name='descendant_comments', null=True)
     root_is_music = models.BooleanField(default=False)
@@ -109,17 +112,19 @@ class Comment(models.Model):
     son_count = models.IntegerField(default=0)
     is_reviewed = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
+    point = models.IntegerField(default=0)
 
     creator = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     create_date = models.DateField(auto_now_add=True)
     likes = models.IntegerField(default=0)
-    user_like_this = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='liked_comment', null=True)
+    user_like_this = models.ManyToManyField(CustomUser, related_name='user_comments', blank=True)
     content = models.TextField(default='none')
 
 
 class Task(models.Model):
     task_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     task_name = models.CharField(max_length=30, default='Default Task')
+    # 两个字段 delete/review 和 user/music   格式如 delete.user
     task_type = models.CharField(max_length=30)
     # task_priority的range为[0, 5]
     task_priority = models.IntegerField(default=0)
@@ -128,7 +133,17 @@ class Task(models.Model):
 
     task_creator = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='tasks')
     create_date = models.DateField(auto_now_add=True)
+    music_id = models.ForeignKey(MusicInfo, on_delete=models.CASCADE, related_name='tasks', null=True)
 
     # 默认为 none , 未完成为 to be done, 完成为 completed, 失败为 failed
     task_state = models.CharField(max_length=30, default='to be done')
     task_completed_time = models.DateTimeField(default=timezone.now)
+
+
+class UserAction(models.Model):
+    action_id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+    create_date = models.DateField(auto_now_add=True)
+    creator = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='actions')
+    action_type = models.CharField(max_length=30)
+
+
