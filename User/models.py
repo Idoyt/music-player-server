@@ -133,7 +133,7 @@ class Task(models.Model):
 
     task_creator = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='tasks')
     create_date = models.DateField(auto_now_add=True)
-    music_id = models.ForeignKey(MusicInfo, on_delete=models.CASCADE, related_name='tasks', null=True)
+    about_music_id = models.ForeignKey(MusicInfo, on_delete=models.CASCADE, related_name='tasks', null=True)
 
     # 默认为 none , 未完成为 to be done, 完成为 completed, 失败为 failed
     task_state = models.CharField(max_length=30, default='to be done')
